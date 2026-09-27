@@ -1,0 +1,1477 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>植物分類マスター</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <!-- Babel (JSX変換用) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+        @keyframes bounce-slow {
+            0%, 100% { transform: translateY(-5%); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+            50% { transform: translateY(0); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+        }
+        .animate-bounce-slow {
+            animation: bounce-slow 2s infinite;
+        }
+        @keyframes fade-out-up {
+            0% { opacity: 1; transform:translate(-50%, -50%) scale(1); }
+            100% { opacity: 0; transform:translate(-50%, -150%) scale(1.5); }
+        }
+        .animate-feedback {
+            animation: fade-out-up 0.8s ease-out forwards;
+        }
+        /* タップ時のハイライトを無効化（スマホでの操作感向上） */
+        button {
+            -webkit-tap-highlight-color: transparent;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        // --- アイコンコンポーネント ---
+        const Icon = ({ children, color = "currentColor", size = 24, className = "", ...props }) => (
+            <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width={size} 
+                height={size} 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke={color} 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                className={className}
+                {...props}
+            >
+                {children}
+            </svg>
+        );
+
+        const Icons = {
+            Trophy: (props) => <Icon {...props}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" /><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" /><path d="M4 22h16" /><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" /><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" /><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" /></Icon>,
+            Timer: (props) => <Icon {...props}><line x1="10" x2="14" y1="2" y2="2" /><line x1="12" x2="15" y1="14" y2="11" /><circle cx="12" cy="14" r="8" /></Icon>,
+            Star: (props) => <Icon {...props}><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" /></Icon>,
+            CheckCircle: (props) => <Icon {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" /></Icon>,
+            XCircle: (props) => <Icon {...props}><circle cx="12" cy="12" r="10" /><path d="m15 9-6 6" /><path d="m9 9 6 6" /></Icon>,
+            BookOpen: (props) => <Icon {...props}><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" /></Icon>,
+            Settings: (props) => <Icon {...props}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.47a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" /></Icon>,
+            Play: (props) => <Icon {...props}><polygon points="5 3 19 12 5 21 5 3" /></Icon>,
+            ArrowLeft: (props) => <Icon {...props}><path d="m12 19-7-7 7-7" /><path d="M19 12H5" /></Icon>,
+            RefreshCw: (props) => <Icon {...props}><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" /><path d="M16 21h5v-5" /></Icon>,
+            Home: (props) => <Icon {...props}><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></Icon>,
+            X: (props) => <Icon {...props}><path d="M18 6 6 18" /><path d="m6 6 18 18" /></Icon>,
+            List: (props) => <Icon {...props}><line x1="8" x2="21" y1="6" y2="6" /><line x1="8" x2="21" y1="12" y2="12" /><line x1="8" x2="21" y1="18" y2="18" /><line x1="3" x2="3.01" y1="6" y2="6" /><line x1="3" x2="3.01" y1="12" y2="12" /><line x1="3" x2="3.01" y1="18" y2="18" /></Icon>,
+            Eye: (props) => <Icon {...props}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" /><circle cx="12" cy="12" r="3" /></Icon>,
+            EyeOff: (props) => <Icon {...props}><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24" /><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68" /><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61" /><line x1="2" x2="22" y1="2" y2="22" /></Icon>,
+            Zap: (props) => <Icon {...props}><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" /></Icon>,
+            Heart: (props) => <Icon {...props}><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z" /></Icon>,
+            AlertTriangle: (props) => <Icon {...props}><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" /></Icon>,
+            Clock: (props) => <Icon {...props}><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></Icon>,
+            Swords: (props) => <Icon {...props}><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="m13 19 6-6"/><path d="M19 5l-7 7"/><path d="M5 19l4-4"/></Icon>,
+            Calendar: (props) => <Icon {...props}><rect width="18" height="18" x="3" y="4" rx="2" ry="2" /><line x1="16" x2="16" y1="2" y2="6" /><line x1="8" x2="8" y1="2" y2="6" /><line x1="3" x2="21" y1="10" y2="10" /></Icon>,
+        };
+
+        const { Trophy, Timer, Star, CheckCircle, XCircle, BookOpen, Settings, Play, ArrowLeft, RefreshCw, Home, X, List, Eye, EyeOff, Zap, Heart, AlertTriangle, Clock, Swords, Calendar } = Icons;
+
+        // --- 問題データ (中1 生物 植物の分類) + 解説 ---
+        const QUESTION_DATA = [
+          { id: 1, q: "種子をつくってなかまをふやす植物を何というか？", options: ["種子植物", "胞子植物", "被子植物", "裸子植物"], ans: "種子植物", note: "花を咲かせ、種子をつくってふえる植物を種子植物といいます。" },
+          { id: 2, q: "種子をつくらず、胞子でふやす植物はどれか？", options: ["イヌワラビ", "サクラ", "マツ", "タンポポ"], ans: "イヌワラビ", note: "シダ植物（イヌワラビなど）やコケ植物は、種子ではなく胞子でふえます。" },
+          { id: 3, q: "胚珠が子房の中にあり、種子が果実の中にできる植物を何というか？", options: ["被子植物", "裸子植物", "コケ植物", "シダ植物"], ans: "被子植物", note: "被子植物は、胚珠が子房に包まれています。受粉後、子房は果実になります。" },
+          { id: 4, q: "胚珠がむき出しになっている植物を何というか？", options: ["裸子植物", "被子植物", "単子葉類", "双子葉類"], ans: "裸子植物", note: "裸子植物には子房がなく、胚珠がむき出しになっています。" },
+          { id: 5, q: "次の中から「裸子植物」を選びなさい。", options: ["マツ", "アブラナ", "エンドウ", "チューリップ"], ans: "マツ", note: "マツ、イチョウ、ソテツ、スギなどは裸子植物の代表例です。" },
+          { id: 6, q: "裸子植物の特徴として正しいものはどれか？", options: ["子房がない", "花弁が鮮やか", "果実ができる", "主根と側根をもつものだけである"], ans: "子房がない", note: "裸子植物には子房がないため、果実もできません（種子はできます）。" },
+          { id: 7, q: "被子植物のうち、子葉が2枚のなかまを何というか？", options: ["双子葉類", "単子葉類", "合弁花類", "離弁花類"], ans: "双子葉類", note: "芽が出たときの子葉が2枚のものを双子葉類といいます。" },
+          { id: 8, q: "被子植物のうち、子葉が1枚のなかまを何というか？", options: ["単子葉類", "双子葉類", "裸子植物", "シダ植物"], ans: "単子葉類", note: "芽が出たときの子葉が1枚のものを単子葉類といいます。" },
+          { id: 9, q: "双子葉類の葉脈のつくりはどれか？", options: ["網状脈", "平行脈", "主脈", "輪状脈"], ans: "網状脈", note: "双子葉類の葉脈は、網の目のようになっている網状脈です。" },
+          { id: 10, q: "単子葉類の葉脈のつくりはどれか？", options: ["平行脈", "網状脈", "側脈", "放射状"], ans: "平行脈", note: "単子葉類の葉脈は、平行になっている平行脈です。" },
+          { id: 11, q: "双子葉類の根のつくりはどれか？", options: ["主根と側根", "ひげ根", "地下茎", "仮根"], ans: "主根と側根" },
+          { id: 12, q: "単子葉類の根のつくりはどれか？", options: ["ひげ根", "主根と側根", "仮根", "塊根"], ans: "ひげ根" },
+          { id: 13, q: "双子葉類の茎の維管束の並び方は？", options: ["輪状に並んでいる", "散らばっている", "中心に集まっている", "ない"], ans: "輪状に並んでいる", note: "双子葉類の茎の断面では、維管束が輪のように並んでいます。" },
+          { id: 14, q: "単子葉類の茎の維管束の並び方は？", options: ["散らばっている", "輪状に並んでいる", "規則正しく並んでいる", "外側に集まっている"], ans: "散らばっている", note: "単子葉類の茎の断面では、維管束が全体に散らばっています。" },
+          { id: 15, q: "花弁がくっついている双子葉類を何というか？", options: ["合弁花類", "離弁花類", "単子葉類", "裸子植物"], ans: "合弁花類", note: "アサガオやタンポポのように花弁がくっついているものを合弁花類といいます。" },
+          { id: 16, q: "花弁が1枚ずつ離れている双子葉類を何というか？", options: ["離弁花類", "合弁花類", "裸子植物", "シダ植物"], ans: "離弁花類", note: "サクラやアブラナのように花弁が離れているものを離弁花類といいます。" },
+          { id: 17, q: "次の中から「合弁花類」を選びなさい。", options: ["タンポポ", "サクラ", "アブラナ", "エンドウ"], ans: "タンポポ", note: "タンポポの花弁は根元でくっついています（合弁花類）。" },
+          { id: 18, q: "次の中から「離弁花類」を選びなさい。", options: ["サクラ", "ツツジ", "アサガオ", "タンポポ"], ans: "サクラ", note: "サクラの花弁は1枚ずつ散ります（離弁花類）。" },
+          { id: 19, q: "次の中から「単子葉類」を選びなさい。", options: ["トウモロコシ", "ヒマワリ", "ホウセンカ", "アサガオ"], ans: "トウモロコシ", note: "トウモロコシ、イネ、ユリなどは単子葉類です。" },
+          { id: 20, q: "次の中から「単子葉類」を選びなさい。", options: ["ユリ", "アブラナ", "エンドウ", "サクラ"], ans: "ユリ", note: "ユリの花は単子葉類の特徴（花弁が3の倍数など）を持っています。" },
+          { id: 21, q: "次の中から「シダ植物」を選びなさい。", options: ["イヌワラビ", "ゼニゴケ", "スギゴケ", "ソテツ"], ans: "イヌワラビ", note: "イヌワラビはシダ植物です。コケ植物と違い、維管束があります。" },
+          { id: 22, q: "次の中から「コケ植物」を選びなさい。", options: ["ゼニゴケ", "ゼンマイ", "スギ", "ワラビ"], ans: "ゼニゴケ", note: "ゼニゴケ、スギゴケなどはコケ植物です。" },
+          { id: 23, q: "シダ植物やコケ植物にはなく、種子植物にはあるものは？", options: ["花", "葉", "茎", "根"], ans: "花", note: "シダ植物やコケ植物は花を咲かせません。" },
+          { id: 24, q: "コケ植物が地面に体を固定するためのつくりを何というか？", options: ["仮根", "主根", "ひげ根", "側根"], ans: "仮根", note: "仮根（かこん）は体を固定するためのもので、根のように水を吸収する働きはほとんどありません。" },
+          { id: 25, q: "イチョウやソテツは何植物のなかまか？", options: ["裸子植物", "被子植物", "シダ植物", "コケ植物"], ans: "裸子植物", note: "イチョウやソテツは、マツと同じ裸子植物です。" },
+          { id: 26, q: "ツユクサの葉脈はどれか？", options: ["平行脈", "網状脈", "ない", "輪状"], ans: "平行脈", note: "ツユクサは単子葉類なので、平行脈です。" },
+          { id: 27, q: "アブラナの根はどれか？", options: ["主根と側根", "ひげ根", "仮根", "ない"], ans: "主根と側根", note: "アブラナは双子葉類なので、主根と側根をもちます。" },
+          { id: 28, q: "スギナ（つくし）は何植物のなかまか？", options: ["シダ植物", "コケ植物", "裸子植物", "被子植物"], ans: "シダ植物", note: "スギナはシダ植物のなかまです。つくしはスギナの胞子茎です。" },
+          { id: 29, q: "コケ植物はどこで水を吸収するか？", options: ["体の表面全体", "仮根", "維管束", "葉だけ"], ans: "体の表面全体", note: "コケ植物には根がないため、体の表面全体から水を吸収します。" },
+          { id: 30, q: "維管束がない植物はどれか？", options: ["コケ植物", "シダ植物", "裸子植物", "被子植物"], ans: "コケ植物", note: "コケ植物には維管束がありません。シダ植物以上には維管束があります。" },
+          { id: 31, q: "マツの花粉が入っている袋を何というか？", options: ["花粉のう", "やく", "胚珠", "子房"], ans: "花粉のう", note: "被子植物では「やく」といいますが、マツなどの裸子植物では「花粉のう」と呼びます。" },
+          { id: 32, q: "マツの雌花にある、将来種子になる部分は？", options: ["胚珠", "子房", "柱頭", "やく"], ans: "胚珠", note: "胚珠は成長して種子になります。" },
+          { id: 33, q: "マツの種子についている、遠くへ飛ぶための構造は？", options: ["翼（つばさ）", "綿毛", "とげ", "果肉"], ans: "翼（つばさ）", note: "マツの種子には翼があり、風に乗って遠くまで運ばれます。" },
+          { id: 34, q: "被子植物において、花粉が柱頭につくことを何というか？", options: ["受粉", "受精", "結実", "発芽"], ans: "受粉", note: "花粉がめしべの柱頭につくことを受粉といいます。" },
+          { id: 35, q: "アサガオの花弁はくっついているか、離れているか？", options: ["くっついている", "離れている", "ない", "わからない"], ans: "くっついている", note: "アサガオは合弁花類なので、花弁はくっついて漏斗状になっています。" },
+          { id: 36, q: "イネの根はどのような形か？", options: ["ひげ根", "主根と側根", "仮根", "塊根"], ans: "ひげ根", note: "イネは単子葉類なので、ひげ根をもちます。" },
+          { id: 37, q: "タンポポは何類に分類されるか？", options: ["双子葉類・合弁花類", "双子葉類・離弁花類", "単子葉類", "裸子植物"], ans: "双子葉類・合弁花類", note: "タンポポは双子葉類であり、花弁がくっついている合弁花類です。" },
+          { id: 38, q: "エンドウは何類に分類されるか？", options: ["双子葉類・離弁花類", "双子葉類・合弁花類", "単子葉類", "裸子植物"], ans: "双子葉類・離弁花類", note: "エンドウは双子葉類であり、花弁が離れている離弁花類です。" },
+          { id: 39, q: "次のうち、胞子でふえるが、維管束がある植物は？", options: ["シダ植物", "コケ植物", "種子植物", "藻類"], ans: "シダ植物", note: "シダ植物は胞子でふえますが、維管束を持っています。" },
+          { id: 40, q: "次のうち、葉・茎・根の区別がない植物は？", options: ["コケ植物", "シダ植物", "裸子植物", "被子植物"], ans: "コケ植物", note: "コケ植物は葉・茎・根の区別がはっきりしていません（仮根はあります）。" },
+        ];
+
+        // --- ユーティリティ関数 ---
+        const shuffleArray = (array) => {
+          if (!array) return [];
+          const newArray = [...array];
+          for (let i = newArray.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [newArray[i], newArray[j]] = [newArray[j], newArray[i]];
+          }
+          return newArray;
+        };
+
+        // --- 部品コンポーネント (PopButton) ---
+        const PopButton = ({ onClick, children, className = "", color = "green", disabled = false }) => {
+            const colors = {
+              green: "bg-green-500 hover:bg-green-400 border-green-700 text-white",
+              blue: "bg-blue-400 hover:bg-blue-300 border-blue-600 text-white",
+              red: "bg-red-400 hover:bg-red-300 border-red-600 text-white",
+              yellow: "bg-yellow-400 hover:bg-yellow-300 border-yellow-600 text-yellow-900",
+              white: "bg-white hover:bg-gray-50 border-gray-300 text-gray-700",
+              gray: "bg-gray-200 border-gray-300 text-gray-400 cursor-not-allowed"
+            };
+            
+            const styleClass = disabled ? colors.gray : colors[color] || colors.green;
+
+            return (
+              <button
+                type="button"
+                onClick={disabled ? undefined : onClick}
+                disabled={disabled}
+                className={`
+                  ${styleClass}
+                  font-bold py-3 px-6 rounded-2xl border-b-4 
+                  ${!disabled ? 'active:border-b-0 active:translate-y-1 cursor-pointer' : ''} 
+                  transition-all
+                  flex items-center justify-center gap-2 shadow-sm
+                  ${className}
+                `}
+              >
+                {children}
+              </button>
+            );
+        };
+
+        // --- コンポーネント ---
+        function App() {
+          const [gameState, setGameState] = useState('menu'); // menu, playing, result, ranking, glossary, battle_menu, battle_playing, battle_result, combo_menu, combo_playing, combo_result
+          const [config, setConfig] = useState({
+            count: 10,
+            mode: 'normal' // easy, normal, oni
+          });
+          const [currentQuestions, setCurrentQuestions] = useState([]);
+          const [currentIndex, setCurrentIndex] = useState(0);
+          const [score, setScore] = useState(0);
+          const [combo, setCombo] = useState(0); 
+          const [startTime, setStartTime] = useState(0);
+          const [elapsedTime, setElapsedTime] = useState(0);
+          const [userAnswers, setUserAnswers] = useState([]);
+          const [lives, setLives] = useState(3);
+          const [timestamp, setTimestamp] = useState(""); // 結果画面用日時
+          
+          // 解説＆フィードバック用ステート
+          const [feedback, setFeedback] = useState(null); 
+          const [wrongOptions, setWrongOptions] = useState([]); 
+          const [isNextButtonEnabled, setIsNextButtonEnabled] = useState(true);
+
+          // 用語リスト用ステート
+          const [isRedSheetActive, setIsRedSheetActive] = useState(false);
+
+          // ホームへ戻る確認モーダル用ステート
+          const [showExitConfirm, setShowExitConfirm] = useState(false);
+
+          // 対戦モード用ステート
+          const [battleState, setBattleState] = useState({
+              currentPlayer: 1, // 1 or 2
+              timer: 10, // 残り時間
+              timeLimit: 10, // 制限時間
+              winner: null, // 1 or 2
+              reason: '' // 'miss' or 'timeover'
+          });
+
+          // 連続正解チャレンジ用ステート
+          const [comboState, setComboState] = useState({
+              maxCombo: 0,
+              currentCombo: 0,
+              timeLeft: 60, // 秒
+              timeLimit: 60, // 秒 (60, 120, 180)
+              showEffect: null // 'success' or 'fail'
+          });
+
+          // ランキング用ステート (App直下に移動)
+          const [rankingViewMode, setRankingViewMode] = useState('normal');
+          const [rankingTab, setRankingTab] = useState('score_attack');
+
+          // タイマー管理用 Ref
+          const timerRef = useRef(null);
+
+          // ローカルストレージからランキング取得
+          const getRankings = () => {
+            try {
+              const data = localStorage.getItem('plantQuizRankingsScoreV3'); 
+              return data ? JSON.parse(data) : {};
+            } catch (e) {
+              console.error("Storage Error", e);
+              return {};
+            }
+          };
+
+          const saveRanking = (keySuffix, scoreValue, sortType = 'score') => {
+            const key = keySuffix;
+            const rankings = getRankings();
+            const list = rankings[key] || [];
+            
+            list.push({ time: elapsedTime, score: scoreValue, date: new Date().toLocaleDateString() });
+            
+            list.sort((a, b) => {
+              if (sortType === 'score') {
+                  if (b.score !== a.score) return b.score - a.score;
+                  return a.time - b.time;
+              }
+              return a.time - b.time;
+            });
+            
+            rankings[key] = list.slice(0, 5); 
+            localStorage.setItem('plantQuizRankingsScoreV3', JSON.stringify(rankings));
+          };
+
+          const startGame = () => {
+            const shuffledAll = shuffleArray(QUESTION_DATA);
+            const selected = shuffledAll.slice(0, config.count).map(q => ({
+              ...q,
+              shuffledOptions: shuffleArray(q.options)
+            }));
+            
+            setCurrentQuestions(selected);
+            setCurrentIndex(0);
+            setScore(0);
+            setCombo(0);
+            setElapsedTime(0);
+            setUserAnswers([]);
+            setFeedback(null);
+            setWrongOptions([]);
+            setStartTime(Date.now());
+            setShowExitConfirm(false);
+            setTimestamp("");
+            
+            let initialLives = 3;
+            if (config.mode === 'easy') initialLives = Infinity;
+            if (config.mode === 'oni') initialLives = 1;
+            setLives(initialLives);
+
+            setGameState('playing');
+          };
+
+          const startBattle = (limit) => {
+             const shuffledAll = shuffleArray(QUESTION_DATA).map(q => ({
+               ...q,
+               shuffledOptions: shuffleArray(q.options)
+             }));
+             setCurrentQuestions(shuffledAll);
+             setCurrentIndex(0);
+             setBattleState({
+                 currentPlayer: 1,
+                 timer: limit,
+                 timeLimit: limit,
+                 winner: null,
+                 reason: ''
+             });
+             setShowExitConfirm(false);
+             setTimestamp("");
+             setGameState('battle_playing');
+          };
+
+          const startComboGame = (timeLimit) => {
+              // 連続正解チャレンジ開始
+              const shuffledAll = shuffleArray(QUESTION_DATA).map(q => ({
+               ...q,
+               shuffledOptions: shuffleArray(q.options)
+             }));
+             setCurrentQuestions(shuffledAll);
+             setCurrentIndex(0);
+             setComboState({
+                 maxCombo: 0,
+                 currentCombo: 0,
+                 timeLeft: timeLimit,
+                 timeLimit: timeLimit,
+                 showEffect: null
+             });
+             setShowExitConfirm(false);
+             setTimestamp("");
+             setFeedback(null); // 前回のフィードバックが残らないようにリセット
+             setGameState('combo_playing');
+          };
+
+          const stopGame = () => {
+            if (timerRef.current) clearInterval(timerRef.current);
+            setGameState('menu');
+          };
+
+          const handleGoHome = () => {
+            setShowExitConfirm(true);
+          };
+
+          const confirmGoHome = () => {
+            setShowExitConfirm(false);
+            stopGame();
+          };
+
+          const cancelGoHome = () => {
+            setShowExitConfirm(false);
+          };
+
+          // 通常モードの回答処理
+          const handleAnswer = (selectedOption) => {
+            if (feedback || wrongOptions.includes(selectedOption)) return;
+
+            const currentQ = currentQuestions[currentIndex];
+            const isCorrect = selectedOption === currentQ.ans;
+            
+            if (isCorrect) {
+              const baseScore = 10;
+              const bonusScore = combo * 5;
+              const addedScore = baseScore + bonusScore;
+
+              setScore(s => s + addedScore);
+              setCombo(c => c + 1);
+
+              const newHistory = [...userAnswers, { 
+                q: currentQ, 
+                userSelect: selectedOption, 
+                correct: true,
+                combo: combo + 1 
+              }];
+              setUserAnswers(newHistory);
+
+              const hasMistaken = wrongOptions.length > 0;
+
+              setFeedback({
+                isCorrect: true,
+                selected: selectedOption,
+                correctAns: currentQ.ans,
+                note: currentQ.note,
+                bonus: bonusScore > 0 ? bonusScore : 0,
+                hasMistaken: hasMistaken
+              });
+
+              setIsNextButtonEnabled(!hasMistaken);
+
+            } else {
+              setScore(s => s - 5);
+              setCombo(0);
+              setWrongOptions(prev => [...prev, selectedOption]);
+
+              if (config.mode !== 'easy') {
+                  setLives(l => {
+                      const newLives = l - 1;
+                      if (newLives <= 0) {
+                          setTimeout(() => {
+                            setTimestamp(new Date().toLocaleString('ja-JP'));
+                            setGameState('result');
+                          }, 500);
+                      }
+                      return newLives;
+                  });
+              }
+            }
+          };
+
+          // 対戦モードの回答処理
+          const handleBattleAnswer = (selectedOption) => {
+              const currentQ = currentQuestions[currentIndex];
+              const isCorrect = selectedOption === currentQ.ans;
+
+              if (isCorrect) {
+                  const nextPlayer = battleState.currentPlayer === 1 ? 2 : 1;
+                  
+                  let nextIdx = currentIndex + 1;
+                  if (nextIdx >= currentQuestions.length) {
+                      nextIdx = 0; 
+                  }
+
+                  setCurrentIndex(nextIdx);
+                  setBattleState(prev => ({
+                      ...prev,
+                      currentPlayer: nextPlayer,
+                      timer: prev.timeLimit // リセット
+                  }));
+
+              } else {
+                  const winner = battleState.currentPlayer === 1 ? 2 : 1;
+                  setBattleState(prev => ({
+                      ...prev,
+                      winner: winner,
+                      reason: 'miss'
+                  }));
+                  setTimestamp(new Date().toLocaleString('ja-JP'));
+                  setGameState('battle_result');
+              }
+          };
+
+          // 連続正解チャレンジの回答処理
+          const handleComboAnswer = (selectedOption) => {
+              const currentQ = currentQuestions[currentIndex];
+              const isCorrect = selectedOption === currentQ.ans;
+
+              if (isCorrect) {
+                  // 正解: コンボ加算して次へ
+                  setComboState(prev => {
+                      const newCurrent = prev.currentCombo + 1;
+                      return {
+                          ...prev,
+                          currentCombo: newCurrent,
+                          maxCombo: Math.max(prev.maxCombo, newCurrent),
+                          showEffect: 'success'
+                      };
+                  });
+                  
+                  // 次の問題へ（エフェクト表示のため、わずかに遅らせて次へ）
+                  setTimeout(() => {
+                      let nextIdx = currentIndex + 1;
+                      if (nextIdx >= currentQuestions.length) nextIdx = 0;
+                      setCurrentIndex(nextIdx);
+                      setComboState(prev => ({ ...prev, showEffect: null }));
+                  }, 400);
+
+              } else {
+                  // 不正解: コンボリセット
+                  setComboState(prev => ({
+                      ...prev,
+                      currentCombo: 0
+                  }));
+
+                  // 解説表示
+                  setFeedback({
+                    isCorrect: false,
+                    selected: selectedOption,
+                    correctAns: currentQ.ans,
+                    note: currentQ.note,
+                    hasMistaken: true // これにより2秒ロックが発動する
+                  });
+                  // ボタンロック初期化
+                  setIsNextButtonEnabled(false);
+              }
+          };
+
+          const handleNextComboQuestion = () => {
+              setFeedback(null);
+              let nextIdx = currentIndex + 1;
+              if (nextIdx >= currentQuestions.length) nextIdx = 0;
+              setCurrentIndex(nextIdx);
+          };
+
+          const handleNextQuestion = () => {
+            setFeedback(null);
+            setWrongOptions([]);
+
+            if (currentIndex + 1 >= currentQuestions.length) {
+              setTimestamp(new Date().toLocaleString('ja-JP'));
+              setGameState('result');
+            } else {
+              setCurrentIndex(i => i + 1);
+            }
+          };
+
+          // ボタン有効化タイマー
+          useEffect(() => {
+            if (feedback && feedback.hasMistaken) {
+                const timer = setTimeout(() => {
+                    setIsNextButtonEnabled(true);
+                }, 2000); 
+                return () => clearTimeout(timer);
+            }
+          }, [feedback]);
+
+          // 通常モードのタイマー
+          useEffect(() => {
+            let interval = null;
+            if (gameState === 'playing' && !feedback && !showExitConfirm) {
+              interval = setInterval(() => {
+                setElapsedTime(prev => prev + 0.1);
+              }, 100);
+            }
+            return () => {
+              if (interval) clearInterval(interval);
+            };
+          }, [gameState, feedback, showExitConfirm]);
+
+          // 対戦モードのタイマー
+          useEffect(() => {
+              let interval = null;
+              if (gameState === 'battle_playing' && !showExitConfirm) {
+                  interval = setInterval(() => {
+                      setBattleState(prev => {
+                          const newTime = prev.timer - 0.1;
+                          if (newTime <= 0) {
+                              clearInterval(interval);
+                              const winner = prev.currentPlayer === 1 ? 2 : 1;
+                              setTimeout(() => {
+                                  setBattleState(s => ({ ...s, winner, reason: 'timeover', timer: 0 }));
+                                  setTimestamp(new Date().toLocaleString('ja-JP'));
+                                  setGameState('battle_result');
+                              }, 0);
+                              return { ...prev, timer: 0 };
+                          }
+                          return { ...prev, timer: newTime };
+                      });
+                  }, 100);
+              }
+              return () => {
+                  if (interval) clearInterval(interval);
+              };
+          }, [gameState, showExitConfirm]);
+
+          // 連続正解チャレンジのタイマー
+          useEffect(() => {
+              let interval = null;
+              if (gameState === 'combo_playing' && !showExitConfirm) {
+                  // comboモードは解説表示中（feedback != null）でも時間が進む
+                  interval = setInterval(() => {
+                      setComboState(prev => {
+                          const newTime = prev.timeLeft - 0.1;
+                          if (newTime <= 0) {
+                              clearInterval(interval);
+                              setTimeout(() => {
+                                  setTimestamp(new Date().toLocaleString('ja-JP'));
+                                  setFeedback(null); // 解説を閉じる
+                                  setGameState('combo_result');
+                              }, 0);
+                              return { ...prev, timeLeft: 0 };
+                          }
+                          return { ...prev, timeLeft: newTime };
+                      });
+                  }, 100);
+              }
+              return () => {
+                  if (interval) clearInterval(interval);
+              };
+          }, [gameState, showExitConfirm]); // feedbackを依存配列から除外
+
+
+          // ランキング保存 (通常)
+          useEffect(() => {
+            if (gameState === 'result') {
+              if (lives > 0 || config.mode === 'easy') {
+                  const key = `score_${config.mode}_${config.count}`;
+                  saveRanking(key, score);
+              }
+            }
+          }, [gameState]);
+
+          // ランキング保存 (コンボチャレンジ)
+          useEffect(() => {
+              if (gameState === 'combo_result') {
+                  const key = `combo_challenge_${comboState.timeLimit}`;
+                  // コンボ数を保存
+                  saveRanking(key, comboState.maxCombo);
+              }
+          }, [gameState]);
+
+          const calculateMaxScore = (n) => {
+            return (10 * n) + (5 * n * (n - 1) / 2);
+          };
+
+          const renderMenu = () => (
+            <div className="flex flex-col items-center justify-center min-h-screen bg-yellow-50 p-4 font-sans text-gray-800">
+              <div className="bg-white p-8 rounded-[2rem] shadow-[8px_8px_0px_0px_rgba(0,0,0,0.1)] max-w-md w-full border-4 border-gray-800">
+                <div className="text-center mb-6">
+                  <div className="inline-block p-4 bg-green-100 rounded-full mb-4 border-2 border-green-400 animate-bounce-slow">
+                    <BookOpen size={48} className="text-green-600" />
+                  </div>
+                  <h1 className="text-3xl font-black text-gray-800 tracking-tight transform -rotate-2">植物分類<br/><span className="text-green-500">マスター</span></h1>
+                </div>
+
+                <div className="mb-6">
+                  <label className="block text-sm font-black mb-2 flex items-center gap-2 text-gray-600">
+                    <AlertTriangle size={18} /> 難易度
+                  </label>
+                  <div className="space-y-2">
+                    {[
+                        { id: 'easy', label: '🌱 イージー', desc: '何度間違えてもOK' },
+                        { id: 'normal', label: '🌿 ハード', desc: '3回ミスで終了' },
+                        { id: 'oni', label: '🔥 鬼ハード', desc: '1回ミスで即終了' }
+                    ].map(mode => (
+                        <button
+                            key={mode.id}
+                            onClick={() => setConfig({ ...config, mode: mode.id })}
+                            className={`w-full p-3 rounded-xl font-bold text-left flex items-center justify-between border-2 transition-all ${
+                                config.mode === mode.id
+                                    ? 'border-green-500 bg-green-50 text-green-800 shadow-inner'
+                                    : 'border-transparent bg-gray-100 text-gray-400 hover:bg-gray-200'
+                            }`}
+                        >
+                            <span>{mode.label}</span>
+                            <span className="text-xs bg-white px-2 py-1 rounded shadow-sm text-gray-500">{mode.desc}</span>
+                        </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <label className="block text-sm font-black mb-2 flex items-center gap-2 text-gray-600">
+                    <Settings size={18} /> 問題数
+                  </label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[5, 10, 15, 20, 25, 30].map(n => (
+                      <button
+                        key={n}
+                        onClick={() => setConfig({ ...config, count: n })}
+                        className={`py-2 rounded-xl font-bold border-b-4 transition-all flex flex-col items-center justify-center ${
+                          config.count === n 
+                            ? 'bg-green-500 border-green-700 text-white translate-y-1 border-b-0 shadow-inner' 
+                            : 'bg-gray-100 border-gray-300 text-gray-500 hover:bg-green-50'
+                        }`}
+                      >
+                        <span>{n}問</span>
+                        <span className="text-[10px] opacity-80 font-normal">MAX {calculateMaxScore(n)}pts</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <PopButton onClick={startGame} className="w-full text-xl mb-4" color="green">
+                  <Play fill="currentColor" size={24} /> スタート！
+                </PopButton>
+
+                <div className="flex gap-2 mb-4">
+                    <PopButton onClick={() => setGameState('combo_menu')} className="flex-1 text-base" color="yellow">
+                        <Zap size={20} /> 連続正解チャレンジ
+                    </PopButton>
+                </div>
+                <PopButton onClick={() => setGameState('battle_menu')} className="w-full text-lg mb-6" color="red">
+                  <Swords size={24} /> 対戦モード
+                </PopButton>
+
+                <div className="grid grid-cols-2 gap-3 mt-4">
+                   <button
+                     onClick={() => setGameState('ranking')}
+                     className="text-gray-500 font-bold py-3 px-4 bg-gray-100 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-200 hover:text-green-600 transition-colors"
+                   >
+                     <Trophy size={18} /> ランキング
+                   </button>
+                   <button
+                     onClick={() => setGameState('glossary')}
+                     className="text-gray-500 font-bold py-3 px-4 bg-gray-100 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-200 hover:text-green-600 transition-colors"
+                   >
+                     <List size={18} /> 用語リスト
+                   </button>
+                </div>
+              </div>
+            </div>
+          );
+
+          const renderBattleMenu = () => {
+              return (
+                <div className="flex flex-col items-center justify-center min-h-screen bg-red-50 p-4 font-sans text-gray-800">
+                  <div className="bg-white p-8 rounded-[2rem] shadow-[8px_8px_0px_0px_rgba(0,0,0,0.1)] max-w-md w-full border-4 border-red-200 text-center">
+                    <div className="mb-8">
+                      <div className="inline-block p-4 bg-red-100 rounded-full mb-4 border-2 border-red-400">
+                        <Swords size={48} className="text-red-600" />
+                      </div>
+                      <h2 className="text-2xl font-black text-red-800">対戦モード設定</h2>
+                      <p className="text-red-600 mt-2 font-bold text-sm">1問の制限時間を選んでください</p>
+                    </div>
+
+                    <div className="space-y-4 mb-8">
+                        <PopButton onClick={() => startBattle(10)} color="blue" className="w-full">
+                            10秒で対戦
+                        </PopButton>
+                        <PopButton onClick={() => startBattle(5)} color="yellow" className="w-full">
+                            5秒で対戦
+                        </PopButton>
+                        <PopButton onClick={() => startBattle(3)} color="red" className="w-full">
+                            3秒で対戦
+                        </PopButton>
+                    </div>
+
+                    <button
+                        onClick={() => setGameState('menu')}
+                        className="text-gray-500 font-bold py-3 px-6 bg-gray-100 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors w-full"
+                    >
+                        <ArrowLeft size={18} /> 戻る
+                    </button>
+                  </div>
+                </div>
+              );
+          };
+
+          const renderComboMenu = () => {
+              return (
+                <div className="flex flex-col items-center justify-center min-h-screen bg-yellow-50 p-4 font-sans text-gray-800">
+                  <div className="bg-white p-8 rounded-[2rem] shadow-[8px_8px_0px_0px_rgba(0,0,0,0.1)] max-w-md w-full border-4 border-yellow-200 text-center">
+                    <div className="mb-8">
+                      <div className="inline-block p-4 bg-yellow-100 rounded-full mb-4 border-2 border-yellow-400">
+                        <Zap size={48} className="text-yellow-600" />
+                      </div>
+                      <h2 className="text-2xl font-black text-yellow-800">連続正解チャレンジ</h2>
+                      <p className="text-yellow-600 mt-2 font-bold text-sm">制限時間内に何問連続で正解できるか？</p>
+                    </div>
+
+                    <div className="space-y-4 mb-8">
+                        <PopButton onClick={() => startComboGame(60)} color="blue" className="w-full">
+                            1分 チャレンジ
+                        </PopButton>
+                        <PopButton onClick={() => startComboGame(120)} color="green" className="w-full">
+                            2分 チャレンジ
+                        </PopButton>
+                        <PopButton onClick={() => startComboGame(180)} color="red" className="w-full">
+                            3分 チャレンジ
+                        </PopButton>
+                    </div>
+
+                    <button
+                        onClick={() => setGameState('menu')}
+                        className="text-gray-500 font-bold py-3 px-6 bg-gray-100 rounded-xl flex items-center justify-center gap-2 hover:bg-gray-200 transition-colors w-full"
+                    >
+                        <ArrowLeft size={18} /> 戻る
+                    </button>
+                  </div>
+                </div>
+              );
+          };
+
+          const renderGame = () => {
+            if (!currentQuestions || currentQuestions.length === 0 || !currentQuestions[currentIndex]) {
+                return <div>Loading...</div>;
+            }
+            const question = currentQuestions[currentIndex];
+            return (
+              <div className="flex flex-col min-h-screen bg-yellow-50 font-sans text-gray-800 overflow-hidden relative">
+                <div className="bg-white/80 backdrop-blur-md p-4 shadow-sm flex justify-between items-center sticky top-0 z-10 border-b-4 border-green-100">
+                   <button onClick={handleGoHome} className="p-2 bg-gray-100 rounded-full hover:bg-red-100 hover:text-red-500 transition-colors">
+                      <Home size={24} />
+                   </button>
+
+                  <div className="flex flex-col items-center">
+                     <div className="text-xs font-bold text-gray-400">SCORE</div>
+                     <div className="font-black text-2xl text-orange-500 leading-none">{score}</div>
+                  </div>
+                  
+                  <div className="flex items-center gap-3">
+                     {config.mode !== 'easy' && (
+                        <div className="flex items-center gap-1 text-red-500 font-bold bg-white px-2 py-1 rounded-full border border-red-100 mr-2">
+                            <Heart fill="currentColor" size={16} /> x {lives}
+                        </div>
+                     )}
+                    <div className="flex items-center gap-2 font-mono text-xl font-bold text-gray-600 bg-gray-100 px-3 py-1 rounded-lg">
+                       <Timer size={18}/> {elapsedTime.toFixed(1)}s
+                    </div>
+                    <div className="font-bold bg-green-100 px-3 py-1 rounded-full text-green-800 border border-green-300">
+                      {currentIndex + 1} / {config.count}
+                    </div>
+                  </div>
+                </div>
+
+                {combo > 1 && !feedback && (
+                  <div className="absolute top-24 left-1/2 transform -translate-x-1/2 z-20 pointer-events-none w-full flex justify-center">
+                     <div className="bg-yellow-400 text-yellow-900 px-6 py-1 rounded-full font-black text-sm shadow-lg border-2 border-white animate-bounce">
+                        {combo} 連続正解中！ (+{combo * 5}点)
+                     </div>
+                  </div>
+                )}
+
+                <div className="flex-1 p-4 md:p-8 flex flex-col items-center max-w-4xl mx-auto w-full relative z-10">
+                  <div className="w-full bg-white p-6 md:p-12 rounded-[2rem] shadow-[0px_8px_0px_0px_#e5e7eb] border-2 border-gray-100 mb-8 flex-grow flex items-center justify-center min-h-[220px] relative overflow-hidden">
+                     <div className="absolute top-0 left-0 w-full h-4 bg-green-400"></div>
+                     <h2 className="text-xl md:text-3xl font-bold text-center leading-relaxed text-gray-800 z-10">
+                      {question.q}
+                    </h2>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 w-full h-auto pb-24">
+                    {question.shuffledOptions.map((opt, idx) => {
+                      const isWrong = wrongOptions.includes(opt);
+                      let btnColor = "white";
+                      if (isWrong) btnColor = "gray";
+
+                      return (
+                        <PopButton
+                          key={idx}
+                          onClick={() => handleAnswer(opt)}
+                          color={btnColor}
+                          disabled={isWrong || !!feedback}
+                          className={`text-lg md:text-xl py-6 ${isWrong ? 'opacity-50 scale-95' : ''}`}
+                        >
+                          {isWrong ? <span className="text-red-400 flex items-center gap-2"><X size={20}/> {opt}</span> : opt}
+                        </PopButton>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {feedback && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+                    <div className="bg-white rounded-[2rem] shadow-2xl max-w-lg w-full p-6 border-4 border-gray-800 relative animate-in zoom-in-95 duration-200">
+                      
+                      <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 rounded-full p-4 border-4 border-white shadow-lg bg-green-500">
+                        <CheckCircle size={48} className="text-white" />
+                      </div>
+
+                      <div className="mt-8 text-center">
+                        <h3 className="text-3xl font-black mb-2 text-green-500">
+                          正解！
+                        </h3>
+                        
+                        {feedback.bonus > 0 && (
+                           <div className="mb-4 inline-block bg-yellow-100 text-yellow-800 px-4 py-1 rounded-full font-bold text-sm">
+                              コンボボーナス +{feedback.bonus}点！
+                           </div>
+                        )}
+                        
+                        <div className="text-left bg-gray-50 p-4 rounded-xl border-2 border-gray-100 mb-6">
+                          <div className="bg-blue-50 text-blue-600 text-xs font-bold px-3 py-1 rounded-full mb-4 inline-flex items-center gap-1 w-full justify-center">
+                             <Clock size={14} /> 解説中はタイマー停止中
+                          </div>
+
+                          <p className="text-xs text-gray-500 font-bold mb-1">正解は...</p>
+                          <p className="text-xl font-bold text-gray-800 mb-4">{feedback.correctAns}</p>
+                          <div className="border-t border-gray-200 pt-3">
+                             <p className="text-sm font-bold text-gray-400 mb-1 flex items-center gap-1"><BookOpen size={14}/> 解説</p>
+                             <p className="text-gray-700 leading-relaxed font-medium">
+                               {feedback.note}
+                             </p>
+                          </div>
+                        </div>
+
+                        <PopButton 
+                          onClick={handleNextQuestion} 
+                          color={isNextButtonEnabled ? "blue" : "gray"}
+                          disabled={!isNextButtonEnabled}
+                          className="w-full text-lg"
+                        >
+                          {isNextButtonEnabled ? "次の問題へ" : "解説を確認してください (2秒)"}
+                        </PopButton>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* ホームに戻る確認モーダル */}
+                {showExitConfirm && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                        <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 border-4 border-green-100 text-center animate-in zoom-in-95 duration-200">
+                            <h3 className="text-xl font-bold text-gray-800 mb-4">ホームに戻りますか？</h3>
+                            <p className="text-gray-600 mb-6 text-sm">現在の進行状況は失われます。</p>
+                            <div className="flex gap-3">
+                                <button onClick={cancelGoHome} className="flex-1 py-3 px-4 rounded-xl font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">いいえ</button>
+                                <button onClick={confirmGoHome} className="flex-1 py-3 px-4 rounded-xl font-bold bg-red-500 text-white hover:bg-red-600 transition-colors shadow-md">はい</button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+              </div>
+            );
+          };
+
+          const renderComboGame = () => {
+              if (!currentQuestions || currentQuestions.length === 0 || !currentQuestions[currentIndex]) {
+                  return <div>Loading...</div>;
+              }
+              const question = currentQuestions[currentIndex];
+              
+              // 残り時間の色
+              let timerColor = 'bg-green-500';
+              if (comboState.timeLeft < 10) timerColor = 'bg-red-500';
+              else if (comboState.timeLeft < 30) timerColor = 'bg-yellow-500';
+
+              return (
+                  <div className="flex flex-col min-h-screen bg-yellow-50 font-sans text-gray-800 overflow-hidden relative">
+                      {/* ヘッダー */}
+                      <div className="bg-white/80 backdrop-blur-md p-4 shadow-sm flex justify-between items-center sticky top-0 z-10 border-b-4 border-yellow-100">
+                          <button onClick={handleGoHome} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
+                              <Home size={24} className="text-gray-600" />
+                          </button>
+                          
+                          <div className="flex flex-col items-center">
+                             <div className="text-xs font-bold text-gray-400">MAX COMBO</div>
+                             <div className="font-black text-2xl text-orange-500 leading-none">{comboState.maxCombo}</div>
+                          </div>
+
+                          <div className="flex items-center gap-2 bg-gray-100 px-3 py-1 rounded-lg">
+                              <Clock size={20} className="text-gray-600" />
+                              <span className="font-mono font-bold text-xl">{Math.ceil(comboState.timeLeft)}s</span>
+                          </div>
+                      </div>
+
+                      {/* エフェクトオーバーレイ */}
+                      {comboState.showEffect === 'success' && (
+                          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none animate-feedback">
+                              <div className="text-green-500 font-black text-6xl drop-shadow-lg flex flex-col items-center">
+                                  <CheckCircle size={80} />
+                                  <span>{comboState.currentCombo} Combo!</span>
+                              </div>
+                          </div>
+                      )}
+
+                      {/* タイマーバー */}
+                      <div className="w-full h-2 bg-gray-200">
+                          <div 
+                              className={`h-full transition-all duration-100 ease-linear ${timerColor}`}
+                              style={{ width: `${(comboState.timeLeft / comboState.timeLimit) * 100}%` }}
+                          ></div>
+                      </div>
+
+                      {/* 現在のコンボ表示 */}
+                      <div className="bg-yellow-100 text-yellow-800 text-center py-1 font-bold text-sm">
+                          現在の連続正解: {comboState.currentCombo}
+                      </div>
+
+                      {/* 問題エリア */}
+                      <div className="flex-1 p-4 md:p-8 flex flex-col items-center max-w-4xl mx-auto w-full relative z-10">
+                          <div className="w-full bg-white p-6 md:p-12 rounded-[2rem] shadow-[0px_8px_0px_0px_#e5e7eb] border-2 border-gray-100 mb-8 flex-grow flex items-center justify-center min-h-[200px]">
+                              <h2 className="text-xl md:text-3xl font-bold text-center leading-relaxed text-gray-800">
+                                  {question.q}
+                              </h2>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4 w-full h-auto pb-24">
+                              {question.shuffledOptions.map((opt, idx) => (
+                                  <PopButton
+                                      key={idx}
+                                      onClick={() => handleComboAnswer(opt)}
+                                      color="white"
+                                      className="text-lg md:text-xl py-6"
+                                      disabled={comboState.showEffect !== null || !!feedback} // エフェクト中または解説中は連打防止
+                                  >
+                                      {opt}
+                                  </PopButton>
+                              ))}
+                          </div>
+                      </div>
+
+                      {/* 解説モーダル（コンボモード用） */}
+                      {feedback && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+                          <div className="bg-white rounded-[2rem] shadow-2xl max-w-lg w-full p-6 border-4 border-gray-800 relative animate-in zoom-in-95 duration-200">
+                            
+                            <div className="absolute -top-12 left-1/2 transform -translate-x-1/2 rounded-full p-4 border-4 border-white shadow-lg bg-red-500">
+                              <XCircle size={48} className="text-white" />
+                            </div>
+
+                            <div className="mt-8 text-center">
+                              <h3 className="text-3xl font-black mb-2 text-red-500">
+                                不正解...
+                              </h3>
+                              <p className="text-gray-500 font-bold mb-4">コンボがリセットされました</p>
+                              
+                              <div className="text-left bg-gray-50 p-4 rounded-xl border-2 border-gray-100 mb-6">
+                                <div className="bg-red-50 text-red-600 text-xs font-bold px-3 py-1 rounded-full mb-4 inline-flex items-center gap-1 w-full justify-center animate-pulse">
+                                   <Clock size={14} /> 時間は進んでいます！急げ！
+                                </div>
+
+                                <p className="text-xs text-gray-500 font-bold mb-1">正解は...</p>
+                                <p className="text-xl font-bold text-gray-800 mb-4">{feedback.correctAns}</p>
+                                <div className="border-t border-gray-200 pt-3">
+                                   <p className="text-sm font-bold text-gray-400 mb-1 flex items-center gap-1"><BookOpen size={14}/> 解説</p>
+                                   <p className="text-gray-700 leading-relaxed font-medium">
+                                     {feedback.note}
+                                   </p>
+                                </div>
+                              </div>
+
+                              <PopButton 
+                                onClick={handleNextComboQuestion} 
+                                color={isNextButtonEnabled ? "blue" : "gray"}
+                                disabled={!isNextButtonEnabled}
+                                className="w-full text-lg"
+                              >
+                                {isNextButtonEnabled ? "次の問題へ" : "解説を確認してください (2秒)"}
+                              </PopButton>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ホームに戻る確認モーダル */}
+                      {showExitConfirm && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                            <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 border-4 border-green-100 text-center animate-in zoom-in-95 duration-200">
+                                <h3 className="text-xl font-bold text-gray-800 mb-4">チャレンジをやめますか？</h3>
+                                <div className="flex gap-3">
+                                    <button onClick={cancelGoHome} className="flex-1 py-3 px-4 rounded-xl font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">いいえ</button>
+                                    <button onClick={confirmGoHome} className="flex-1 py-3 px-4 rounded-xl font-bold bg-red-500 text-white hover:bg-red-600 transition-colors shadow-md">はい</button>
+                                </div>
+                            </div>
+                        </div>
+                      )}
+                  </div>
+              );
+          };
+
+          const renderBattleGame = () => {
+              if (!currentQuestions || currentQuestions.length === 0 || !currentQuestions[currentIndex]) {
+                  return <div>Loading...</div>;
+              }
+              const question = currentQuestions[currentIndex];
+              const isP1 = battleState.currentPlayer === 1;
+              const bgColor = isP1 ? 'bg-blue-50' : 'bg-red-50';
+              const textColor = isP1 ? 'text-blue-900' : 'text-red-900';
+              const borderColor = isP1 ? 'border-blue-200' : 'border-red-200';
+
+              return (
+                  <div className={`flex flex-col min-h-screen ${bgColor} font-sans ${textColor} overflow-hidden relative transition-colors duration-500`}>
+                      <div className="bg-white/80 backdrop-blur-md p-4 shadow-sm flex justify-between items-center sticky top-0 z-10 border-b-4 border-gray-100">
+                          <button onClick={handleGoHome} className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
+                              <Home size={24} className="text-gray-600" />
+                          </button>
+                          
+                          <div className={`text-xl font-black px-6 py-2 rounded-full border-2 ${isP1 ? 'bg-blue-100 text-blue-600 border-blue-200' : 'bg-red-100 text-red-600 border-red-200'}`}>
+                              PLAYER {battleState.currentPlayer} の番
+                          </div>
+
+                          <div className="w-10"></div> 
+                      </div>
+
+                      <div className="w-full h-4 bg-gray-200">
+                          <div 
+                              className={`h-full transition-all duration-100 ease-linear ${battleState.timer < 3 ? 'bg-red-500' : (isP1 ? 'bg-blue-500' : 'bg-red-500')}`}
+                              style={{ width: `${(battleState.timer / battleState.timeLimit) * 100}%` }}
+                          ></div>
+                      </div>
+                      <div className="text-center font-mono font-bold text-3xl mt-2">
+                          {battleState.timer.toFixed(1)}s
+                      </div>
+
+                      <div className="flex-1 p-4 md:p-8 flex flex-col items-center max-w-4xl mx-auto w-full relative z-10">
+                          <div className={`w-full bg-white p-6 md:p-12 rounded-[2rem] shadow-lg border-4 ${borderColor} mb-8 flex-grow flex items-center justify-center min-h-[200px]`}>
+                              <h2 className="text-xl md:text-3xl font-bold text-center leading-relaxed text-gray-800">
+                                  {question.q}
+                              </h2>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4 w-full h-auto pb-24">
+                              {question.shuffledOptions.map((opt, idx) => (
+                                  <PopButton
+                                      key={idx}
+                                      onClick={() => handleBattleAnswer(opt)}
+                                      color="white"
+                                      className="text-lg md:text-xl py-6"
+                                  >
+                                      {opt}
+                                  </PopButton>
+                              ))}
+                          </div>
+                      </div>
+
+                      {showExitConfirm && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+                            <div className="bg-white rounded-2xl shadow-xl max-w-sm w-full p-6 border-4 border-green-100 text-center animate-in zoom-in-95 duration-200">
+                                <h3 className="text-xl font-bold text-gray-800 mb-4">対戦をやめますか？</h3>
+                                <div className="flex gap-3">
+                                    <button onClick={cancelGoHome} className="flex-1 py-3 px-4 rounded-xl font-bold bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors">いいえ</button>
+                                    <button onClick={confirmGoHome} className="flex-1 py-3 px-4 rounded-xl font-bold bg-red-500 text-white hover:bg-red-600 transition-colors shadow-md">はい</button>
+                                </div>
+                            </div>
+                        </div>
+                      )}
+                  </div>
+              );
+          };
+
+          const renderComboResult = () => {
+              return (
+                  <div className="flex flex-col items-center justify-center min-h-screen bg-yellow-50 p-4 font-sans">
+                      <div className="bg-white p-8 rounded-[2rem] shadow-xl max-w-2xl w-full text-center border-4 border-gray-200">
+                          <div className="mb-6">
+                              <div className="inline-block p-4 bg-yellow-100 rounded-full mb-4 animate-bounce">
+                                  <Zap size={64} className="text-yellow-600" />
+                              </div>
+                              <h2 className="text-4xl font-black text-yellow-600 mb-2">TIME UP!</h2>
+                              <p className="text-gray-500 font-bold">{Math.floor(comboState.timeLimit / 60)}分間チャレンジ終了！</p>
+                          </div>
+
+                          <div className="bg-gray-800 text-white p-6 rounded-3xl mb-4 shadow-inner">
+                              <p className="text-gray-400 font-bold text-sm mb-2">最大連続正解数</p>
+                              <p className="text-7xl font-black text-yellow-400 tracking-tighter">{comboState.maxCombo}<span className="text-2xl ml-2">Combo</span></p>
+                          </div>
+
+                          {/* 日時表示 */}
+                          <div className="flex items-center justify-center gap-2 text-gray-400 font-bold text-sm mb-8 bg-gray-100 py-2 rounded-full">
+                              <Calendar size={16} />
+                              <span>{timestamp}</span>
+                          </div>
+
+                          <div className="flex gap-4">
+                              <PopButton onClick={() => setGameState('menu')} color="white" className="flex-1">
+                                  <Home size={20} /> TOP
+                              </PopButton>
+                              <PopButton onClick={() => startComboGame(comboState.timeLimit)} color="green" className="flex-1">
+                                  <RefreshCw size={20} /> 再挑戦
+                              </PopButton>
+                          </div>
+                      </div>
+                  </div>
+              );
+          };
+
+          const renderBattleResult = () => {
+              const winner = battleState.winner;
+              const loser = winner === 1 ? 2 : 1;
+              const isP1Win = winner === 1;
+              const bgColor = isP1Win ? 'bg-blue-50' : 'bg-red-50';
+              const textColor = isP1Win ? 'text-blue-600' : 'text-red-600';
+
+              return (
+                  <div className={`flex flex-col items-center justify-center min-h-screen ${bgColor} p-4 font-sans`}>
+                      <div className="bg-white p-8 rounded-[2rem] shadow-xl max-w-2xl w-full text-center border-4 border-gray-200">
+                          <div className="mb-6">
+                              <Trophy size={80} className={`mx-auto mb-4 ${textColor}`} />
+                              <h2 className={`text-5xl font-black mb-2 ${textColor}`}>
+                                  PLAYER {winner} WIN!
+                              </h2>
+                              <p className="text-gray-500 font-bold text-xl mt-4">
+                                  {battleState.reason === 'timeover' 
+                                      ? `PLAYER ${loser} の時間切れ！` 
+                                      : `PLAYER ${loser} が間違えました！`}
+                              </p>
+                          </div>
+
+                          {/* 日時表示 */}
+                          <div className="flex items-center justify-center gap-2 text-gray-400 font-bold text-sm mb-8 bg-gray-100 py-2 rounded-full">
+                              <Calendar size={16} />
+                              <span>{timestamp}</span>
+                          </div>
+
+                          <div className="flex gap-4 mt-8">
+                              <PopButton onClick={() => setGameState('menu')} color="white" className="flex-1">
+                                  <Home size={20} /> TOP
+                              </PopButton>
+                              <PopButton onClick={() => startBattle(battleState.timeLimit)} color="green" className="flex-1">
+                                  <RefreshCw size={20} /> 再戦
+                              </PopButton>
+                          </div>
+                      </div>
+                  </div>
+              );
+          };
+
+          const renderResult = () => {
+            const isGameOver = lives <= 0 && config.mode !== 'easy';
+            const modeLabel = {
+                easy: 'イージー',
+                normal: 'ハード',
+                oni: '鬼ハード'
+            }[config.mode];
+
+            return (
+              <div className="flex flex-col items-center justify-center min-h-screen bg-yellow-50 p-4 font-sans">
+                <div className="bg-white p-8 rounded-[2rem] shadow-[8px_8px_0px_0px_rgba(0,0,0,0.1)] max-w-2xl w-full text-center border-4 border-gray-800">
+                  
+                   <div className="mb-6">
+                      <div className={`inline-block p-4 rounded-full mb-4 ${isGameOver ? 'bg-red-100' : 'bg-yellow-100'} animate-bounce`}>
+                        {isGameOver ? <XCircle size={64} className="text-red-500" /> : <Trophy size={64} className="text-yellow-500" />}
+                      </div>
+                      <h2 className={`text-4xl font-black mb-2 ${isGameOver ? 'text-red-500' : 'text-green-500'}`}>
+                          {isGameOver ? 'GAME OVER' : 'FINISH!'}
+                      </h2>
+                      <p className="text-gray-500 font-bold">{isGameOver ? '残念！また挑戦しよう！' : '全問終了！おつかれさま！'}</p>
+                   </div>
+
+                   <div className="flex items-center justify-center gap-2 mb-6 text-sm font-bold text-gray-500">
+                       <span className="bg-gray-100 px-3 py-1 rounded-full">{modeLabel}モード</span>
+                       <span className="bg-gray-100 px-3 py-1 rounded-full">{config.count}問コース</span>
+                   </div>
+
+                  <div className="bg-gray-800 text-white p-6 rounded-3xl mb-4 shadow-inner">
+                     <p className="text-gray-400 font-bold text-sm mb-2">最終スコア</p>
+                     <p className="text-6xl font-black text-yellow-400 tracking-tighter">{score}</p>
+                  </div>
+
+                  {/* 日時表示 */}
+                  <div className="flex items-center justify-center gap-2 text-gray-400 font-bold text-sm mb-6 bg-gray-100 py-2 rounded-full">
+                      <Calendar size={16} />
+                      <span>{timestamp}</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 mb-8">
+                    <div className="bg-gray-50 p-4 rounded-2xl border-2 border-gray-100">
+                      <p className="text-sm text-gray-500 font-bold mb-1">かかった時間</p>
+                      <p className="text-2xl font-black text-gray-800">{elapsedTime.toFixed(2)}<span className="text-sm">秒</span></p>
+                    </div>
+                    <div className="bg-gray-50 p-4 rounded-2xl border-2 border-gray-100">
+                       <p className="text-sm text-gray-500 font-bold mb-1">正解数</p>
+                       <p className="text-2xl font-black text-gray-800">{currentIndex + (isGameOver ? 0 : 1)}<span className="text-sm">/{config.count}</span></p>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-4">
+                    <PopButton onClick={() => setGameState('menu')} color="white" className="flex-1">
+                      <Home size={20} /> TOP
+                    </PopButton>
+                    <PopButton onClick={startGame} color="green" className="flex-1">
+                      <RefreshCw size={20} /> 再挑戦
+                    </PopButton>
+                  </div>
+                </div>
+              </div>
+            );
+          };
+
+          const renderRanking = () => {
+            const rankings = getRankings();
+            const counts = [5, 10, 15, 20, 25, 30];
+            const modes = [
+                { id: 'easy', label: 'イージー', color: 'text-blue-600' },
+                { id: 'normal', label: 'ハード', color: 'text-green-600' },
+                { id: 'oni', label: '鬼ハード', color: 'text-red-600' }
+            ];
+            
+            // Appのステートを使用
+            const viewMode = rankingViewMode;
+            const setViewMode = setRankingViewMode;
+            // rankingTab は Appで管理
+
+            const comboTimes = [
+                { id: 60, label: '1分' },
+                { id: 120, label: '2分' },
+                { id: 180, label: '3分' }
+            ];
+
+            return (
+              <div className="min-h-screen bg-yellow-50 p-4 font-sans text-gray-800">
+                <div className="max-w-3xl mx-auto bg-white p-6 md:p-10 rounded-[2.5rem] shadow-xl min-h-[80vh] border-4 border-white">
+                  <div className="flex items-center justify-between mb-6">
+                    <button onClick={() => setGameState('menu')} className="p-3 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
+                      <ArrowLeft size={24} />
+                    </button>
+                    <h2 className="text-2xl md:text-3xl font-black flex items-center gap-2 text-gray-700">
+                      <Trophy className="text-yellow-500" size={32} /> ランキング
+                    </h2>
+                    <div className="w-12"></div>
+                  </div>
+
+                  {/* 大枠のタブ切り替え */}
+                  <div className="flex gap-2 mb-6 bg-gray-100 p-1 rounded-full">
+                      <button
+                          onClick={() => setRankingTab('score_attack')}
+                          className={`flex-1 py-2 rounded-full font-bold transition-all ${rankingTab === 'score_attack' ? 'bg-white text-green-600 shadow' : 'text-gray-400 hover:bg-gray-200'}`}
+                      >
+                          スコアアタック
+                      </button>
+                      <button
+                          onClick={() => setRankingTab('combo_challenge')}
+                          className={`flex-1 py-2 rounded-full font-bold transition-all ${rankingTab === 'combo_challenge' ? 'bg-white text-yellow-600 shadow' : 'text-gray-400 hover:bg-gray-200'}`}
+                      >
+                          連続正解
+                      </button>
+                  </div>
+
+                  {rankingTab === 'score_attack' ? (
+                      <div>
+                          {/* 難易度切り替えタブ */}
+                          <div className="flex gap-2 mb-8 justify-center">
+                              {modes.map(m => (
+                                  <button
+                                    key={m.id}
+                                    onClick={() => setViewMode(m.id)}
+                                    className={`px-4 py-2 rounded-full font-bold transition-all ${viewMode === m.id ? 'bg-gray-800 text-white' : 'bg-gray-100 text-gray-400'}`}
+                                  >
+                                      {m.label}
+                                  </button>
+                              ))}
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {counts.map(cnt => {
+                                const key = `score_${viewMode}_${cnt}`;
+                                const list = rankings[key];
+
+                                return (
+                                <div key={cnt} className="bg-gray-50 rounded-2xl p-5 border-2 border-gray-100">
+                                    <h4 className="font-bold text-lg text-gray-600 mb-3 border-b border-gray-200 pb-2 flex justify-between">
+                                    <span>{cnt}問コース</span>
+                                    </h4>
+                                    {!list || list.length === 0 ? (
+                                        <p className="text-xs text-gray-400 text-center py-4">記録なし</p>
+                                    ) : (
+                                    <ul className="space-y-2">
+                                        {list.map((r, i) => (
+                                        <li key={i} className="flex justify-between items-center text-sm p-3 bg-white rounded-xl shadow-sm border border-gray-100">
+                                            <div className="flex items-center gap-3">
+                                                <span className={`
+                                                flex items-center justify-center w-6 h-6 rounded-full font-bold text-xs
+                                                ${i === 0 ? 'bg-yellow-400 text-yellow-900' : 
+                                                    i === 1 ? 'bg-gray-300 text-gray-800' : 
+                                                    i === 2 ? 'bg-orange-300 text-orange-900' : 'bg-gray-100 text-gray-500'}
+                                                `}>
+                                                {i+1}
+                                                </span>
+                                                <span className="font-black text-xl text-gray-800">{r.score}pt</span>
+                                            </div>
+                                            <div className="text-right">
+                                                <div className="text-xs font-mono font-bold text-gray-400">{r.time.toFixed(2)}s</div>
+                                                <div className="text-[10px] text-gray-300">{r.date}</div>
+                                            </div>
+                                        </li>
+                                        ))}
+                                    </ul>
+                                    )}
+                                </div>
+                                );
+                            })}
+                          </div>
+                      </div>
+                  ) : (
+                      <div className="grid grid-cols-1 gap-6">
+                          {comboTimes.map(t => {
+                              const key = `combo_challenge_${t.id}`;
+                              const list = rankings[key];
+
+                              return (
+                                <div key={t.id} className="bg-yellow-50 rounded-2xl p-5 border-2 border-yellow-100">
+                                    <h4 className="font-bold text-lg text-yellow-700 mb-3 border-b border-yellow-200 pb-2 flex justify-between items-center">
+                                        <span className="flex items-center gap-2"><Zap size={20}/> {t.label}チャレンジ</span>
+                                    </h4>
+                                    {!list || list.length === 0 ? (
+                                        <p className="text-xs text-gray-400 text-center py-4">記録なし</p>
+                                    ) : (
+                                    <ul className="space-y-2">
+                                        {list.map((r, i) => (
+                                        <li key={i} className="flex justify-between items-center text-sm p-3 bg-white rounded-xl shadow-sm border border-gray-100">
+                                            <div className="flex items-center gap-3">
+                                                <span className={`
+                                                flex items-center justify-center w-8 h-8 rounded-full font-bold text-sm
+                                                ${i === 0 ? 'bg-yellow-400 text-yellow-900 shadow-md transform scale-110' : 
+                                                    i === 1 ? 'bg-gray-300 text-gray-800' : 
+                                                    i === 2 ? 'bg-orange-300 text-orange-900' : 'bg-gray-100 text-gray-500'}
+                                                `}>
+                                                {i+1}
+                                                </span>
+                                                <span className="font-black text-2xl text-gray-800">{r.score}<span className="text-sm ml-1 font-normal text-gray-500">Combo</span></span>
+                                            </div>
+                                            <div className="text-[10px] text-gray-400">{r.date}</div>
+                                        </li>
+                                        ))}
+                                    </ul>
+                                    )}
+                                </div>
+                              );
+                          })}
+                      </div>
+                  )}
+                </div>
+              </div>
+            );
+          };
+
+          const renderGlossary = () => {
+            return (
+              <div className="min-h-screen bg-yellow-50 p-4 font-sans text-gray-800 flex flex-col items-center">
+                <div className="max-w-3xl w-full bg-white rounded-[2.5rem] shadow-xl border-4 border-white flex flex-col h-[90vh] overflow-hidden">
+                  
+                  <div className="p-6 border-b-2 border-gray-100 flex items-center justify-between bg-white shrink-0 sticky top-0 z-10">
+                    <button onClick={() => setGameState('menu')} className="p-3 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors">
+                      <ArrowLeft size={24} />
+                    </button>
+                    <h2 className="text-2xl font-black flex items-center gap-2 text-gray-700">
+                      <List className="text-green-500" size={32} /> 用語リスト
+                    </h2>
+                    <button 
+                      onClick={() => setIsRedSheetActive(!isRedSheetActive)}
+                      className={`flex flex-col items-center gap-1 p-2 rounded-xl transition-all border-2 ${isRedSheetActive ? 'bg-red-100 border-red-400 text-red-600' : 'bg-gray-100 border-gray-200 text-gray-500'}`}
+                    >
+                      {isRedSheetActive ? <EyeOff size={24} /> : <Eye size={24} />}
+                      <span className="text-[10px] font-bold">赤シート{isRedSheetActive ? 'ON' : 'OFF'}</span>
+                    </button>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 bg-gray-50">
+                    {QUESTION_DATA.map((item, idx) => (
+                      <div key={item.id} className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
+                        <div className="flex gap-4">
+                          <div className="font-mono font-bold text-gray-300 text-xl shrink-0 w-8">
+                            {idx + 1}.
+                          </div>
+                          <div className="flex-1">
+                            <p className="font-bold text-gray-800 text-lg mb-3">
+                              {item.q}
+                            </p>
+
+                            <div className="space-y-3">
+                              <div className="flex items-start gap-2">
+                                <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-1 rounded-md shrink-0 mt-1">答え</span>
+                                <p 
+                                  className={`font-bold text-lg transition-all duration-300 select-none cursor-pointer rounded px-2
+                                    ${isRedSheetActive 
+                                      ? 'text-transparent bg-red-200 active:text-red-600 active:bg-red-50' 
+                                      : 'text-red-600'
+                                    }
+                                  `}
+                                >
+                                  {item.ans}
+                                </p>
+                              </div>
+
+                              <div className="flex items-start gap-2">
+                                 <span className="bg-green-100 text-green-600 text-xs font-bold px-2 py-1 rounded-md shrink-0 mt-1">解説</span>
+                                 <p 
+                                   className={`text-sm text-gray-600 leading-relaxed font-medium transition-all duration-300 select-none cursor-pointer rounded px-2
+                                     ${isRedSheetActive 
+                                       ? 'text-transparent bg-red-100 active:text-gray-600 active:bg-gray-50' 
+                                       : ''
+                                     }
+                                   `}
+                                 >
+                                   {item.note}
+                                 </p>
+                              </div>
+                            </div>
+
+                            {isRedSheetActive && (
+                              <div className="mt-2 text-right">
+                                <span className="text-[10px] text-gray-400">※タップして確認</span>
+                              </div>
+                            )}
+
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                </div>
+              </div>
+            );
+          };
+
+          return (
+            <div id="app-root" className="antialiased">
+              {gameState === 'menu' && renderMenu()}
+              {gameState === 'playing' && renderGame()}
+              {gameState === 'result' && renderResult()}
+              {gameState === 'ranking' && renderRanking()}
+              {gameState === 'glossary' && renderGlossary()}
+              {gameState === 'battle_menu' && renderBattleMenu()}
+              {gameState === 'battle_playing' && renderBattleGame()}
+              {gameState === 'battle_result' && renderBattleResult()}
+              {gameState === 'combo_menu' && renderComboMenu()}
+              {gameState === 'combo_playing' && renderComboGame()}
+              {gameState === 'combo_result' && renderComboResult()}
+            </div>
+          );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
